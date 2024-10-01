@@ -1,0 +1,54 @@
+---
+- name: Harden SSH Configuration
+  hosts: all
+  become: yes
+  vars:
+    backup_date: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+  
+  tasks:
+
+    - name: Ensure SSH configuration file exists
+      stat:
+        path: /etc/ssh/sshd_config
+      register: ssh_config_file
+
+    - name: Backup SSH configuration with date
+      copy:
+        src: /etc/ssh/sshd_config
+        dest: "/etc/ssh/sshd_config_{{ backup_date }}.bak"
+        remote_src: yes
+      when: ssh_config_file.stat.exists
+
+    - name: Harden SSH settings in /etc/ssh/sshd_config
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        state: present
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        backup: yes
+      with_items:
+        - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin no' }
+        - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
+        - { regexp: '^#?ChallengeResponseAuthentication', line: 'ChallengeResponseAuthentication no' }
+        - { regexp: '^#?UsePAM', line: 'UsePAM yes' }
+        - { regexp: '^#?PermitEmptyPasswords', line: 'PermitEmptyPasswords no' }
+        - { regexp: '^#?X11Forwarding', line: 'X11Forwarding no' }
+        - { regexp: '^#?MaxAuthTries', line: 'MaxAuthTries 3' }
+        - { regexp: '^#?AllowTcpForwarding', line: 'AllowTcpForwarding no' }
+        - { regexp: '^#?LoginGraceTime', line: 'LoginGraceTime 30s' }
+        - { regexp: '^#?ClientAliveInterval', line: 'ClientAliveInterval 300' }
+        - { regexp: '^#?ClientAliveCountMax', line: 'ClientAliveCountMax 0' }
+        - { regexp: '^#?AllowUsers', line: 'AllowUsers your_username' }
+
+    - name: Ensure SSH key authentication is enforced
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        state: present
+        regexp: '^#?PubkeyAuthentication'
+        line: 'PubkeyAuthentication yes'
+
+    - name: Reload SSH service to apply changes
+      service:
+        name: ssh
+        state: reloaded
+
