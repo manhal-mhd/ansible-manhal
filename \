@@ -1,0 +1,60 @@
+# vps_audit.yml
+---
+- name: Run VPS Audit Script
+  hosts: lb.mba.afrinic.net
+  become: yes
+  vars:
+    script_path: "/tmp/vps-audit.sh"
+    local_reports_dir: "./audit_reports"
+    timestamp: "{{ ansible_date_time.year }}{{ ansible_date_time.month }}{{ ansible_date_time.day }}_{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}{{ ansible_date_time.second }}"
+
+  tasks:
+    - name: Create local reports directory
+      local_action:
+        module: file
+        path: "{{ local_reports_dir }}"
+        state: directory
+      run_once: true
+
+    - name: Copy VPS audit script to remote hosts
+      copy:
+        src: "./vps-audit.sh"  # Your local script path
+        dest: "{{ script_path }}"
+        mode: '0755'
+
+    - name: Execute VPS audit script
+      shell: "{{ script_path }}"
+      args:
+        chdir: /tmp
+      register: audit_result
+
+    - name: Find the generated report file
+      find:
+        paths: /tmp
+        patterns: "vps-audit-report-*.txt"
+        age: -1m
+      register: report_files
+
+    - name: Debug report files
+      debug:
+        var: report_files
+        
+    - name: Fetch audit report
+      fetch:
+        src: "{{ item.path }}"
+        dest: "{{ local_reports_dir }}/{{ inventory_hostname }}-{{ timestamp }}.txt"
+        flat: yes
+      with_items: "{{ report_files.files }}"
+      when: report_files.matched > 0
+
+    - name: Clean up script
+      file:
+        path: "{{ script_path }}"
+        state: absent
+
+    - name: Clean up remote report
+      file:
+        path: "{{ item.path }}"
+        state: absent
+      with_items: "{{ report_files.files }}"
+      when: report_files.matched > 0 
