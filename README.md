@@ -133,6 +133,10 @@ ansible-playbook -i inventory.ini vps_audit.yml
 ## License
 
 MIT
+## Credits
+
+Original VPS audit script by [Binyam Hailemeskel](https://github.com/vernu)  
+Source: https://github.com/vernu/vps-audit
 
 ## Contributing
 
